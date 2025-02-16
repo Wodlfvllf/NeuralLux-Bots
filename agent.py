@@ -1,14 +1,22 @@
 import numpy as np
+from DQN import MultiAgentDQN
 
 class Agent():
     def __init__(self, player: str, env_cfg):
-        """Step 5: Introduce Relic Exploration Rewards"""
+        """Step 6: Introduce Multi-Agent DQN for Action Selection"""
         self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         self.team_id = 0 if self.player == "player_0" else 1
         self.opp_team_id = 1 if self.team_id == 0 else 0
         np.random.seed(0)
         self.env_cfg = env_cfg
+        
+        # Initialize Multi-Agent DQN
+        n_agents = self.env_cfg["max_units"]  # Number of agents
+        input_dims = (self.env_cfg["max_units"] * 3) + 12  # Input size
+        n_actions = 6  # Number of actions
+
+        self.multi_agent_dqn = MultiAgentDQN(n_agents=n_agents, input_dims=(input_dims,), n_actions=n_actions)
         
         # Tracking previous state information
         self.prev_unit_positions = None
@@ -45,7 +53,7 @@ class Agent():
         return reward
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
-        """Step 5: Selects actions with relic exploration rewards."""
+        """Step 6: Selects actions using Multi-Agent DQN."""
         unit_mask = np.array(obs["units_mask"][self.team_id])
         unit_positions = np.array(obs["units"]["position"][self.team_id])
         unit_energies = np.array(obs["units"]["energy"][self.team_id])
@@ -67,12 +75,12 @@ class Agent():
         unit_representation = np.concatenate((unit_positions.flatten(), unit_energies.flatten()))
         state_representation = np.concatenate((unit_representation, map_energy.flatten(), relic_positions.flatten()))
         
-        actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
-        for unit_id in range(self.env_cfg["max_units"]):
-            if unit_mask[unit_id]:
-                x, y = unit_positions[unit_id]
-                move_direction = np.random.choice([0, 1, 2, 3, 4, 5])  # Random movement selection
-                actions[unit_id] = [move_direction, x, y]
+        # Select actions using Multi-Agent DQN
+        actions, x_coords, y_coords = self.multi_agent_dqn.choose_actions([state_representation] * self.env_cfg["max_units"])
+        
+        formatted_actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
+        for i, unit_id in enumerate(np.where(unit_mask)[0]):
+            formatted_actions[unit_id] = [actions[i], x_coords[i], y_coords[i]]
         
         # Update previous states
         self.prev_unit_positions = unit_positions.copy()
@@ -80,4 +88,4 @@ class Agent():
         self.prev_map_energy = map_energy.copy()
         self.prev_relic_positions = relic_positions.copy()
         
-        return actions
+        return formatted_actions
