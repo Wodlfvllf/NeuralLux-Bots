@@ -11,13 +11,16 @@ class Agent():
         self.env_cfg = env_cfg
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
-        """Step 1: Randomly selects actions for each unit."""
+        """Step 2: Selects movement actions based on unit positions."""
         unit_mask = np.array(obs["units_mask"][self.team_id])
-        num_units = np.sum(unit_mask)  # Count active units
+        unit_positions = np.array(obs["units"]["position"][self.team_id])
         
         actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
         for unit_id in range(self.env_cfg["max_units"]):
             if unit_mask[unit_id]:
-                actions[unit_id] = [np.random.randint(0, 6), 0, 0]  # Random movement action
+                x, y = unit_positions[unit_id]
+                move_direction = np.random.choice([0, 1, 2, 3, 4, 5])  # Random movement selection
+                actions[unit_id] = [move_direction, x, y]  # Store action with position info
         
         return actions
+
