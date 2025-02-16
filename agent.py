@@ -3,7 +3,7 @@ from DQN import MultiAgentDQN
 
 class Agent():
     def __init__(self, player: str, env_cfg):
-        """Step 8: Format actions before returning"""
+        """Step 9: Update previous states and actions properly"""
         self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         self.team_id = 0 if self.player == "player_0" else 1
@@ -54,7 +54,7 @@ class Agent():
         return reward
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
-        """Step 8: Format actions before returning."""
+        """Step 9: Update previous states and actions properly."""
         unit_mask = np.array(obs["units_mask"][self.team_id])
         unit_positions = np.array(obs["units"]["position"][self.team_id])
         unit_energies = np.array(obs["units"]["energy"][self.team_id])
@@ -97,7 +97,7 @@ class Agent():
         for i, unit_id in enumerate(np.where(unit_mask)[0]):
             formatted_actions[unit_id] = [actions[i], x_coords[i], y_coords[i]]
         
-        # Update previous states
+        # Update previous states and actions correctly
         self.prev_unit_positions = unit_positions.copy()
         self.prev_unit_energies = unit_energies.copy()
         self.prev_map_energy = map_energy.copy()
