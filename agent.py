@@ -3,7 +3,7 @@ from DQN import MultiAgentDQN
 
 class Agent():
     def __init__(self, player: str, env_cfg):
-        """Step 6: Introduce Multi-Agent DQN for Action Selection"""
+        """Step 7: Store experiences in the replay buffer"""
         self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         self.team_id = 0 if self.player == "player_0" else 1
@@ -23,6 +23,7 @@ class Agent():
         self.prev_unit_energies = None
         self.prev_map_energy = None
         self.prev_relic_positions = None
+        self.prev_actions = None
 
     def compute_reward(self, unit_positions, prev_unit_positions, unit_energies, prev_unit_energies, relic_positions):
         """Computes a reward based on movement, energy efficiency, and relic exploration."""
@@ -53,7 +54,7 @@ class Agent():
         return reward
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
-        """Step 6: Selects actions using Multi-Agent DQN."""
+        """Step 7: Selects actions and stores experiences in replay buffer."""
         unit_mask = np.array(obs["units_mask"][self.team_id])
         unit_positions = np.array(obs["units"]["position"][self.team_id])
         unit_energies = np.array(obs["units"]["energy"][self.team_id])
@@ -66,6 +67,7 @@ class Agent():
             self.prev_unit_energies = unit_energies.copy()
             self.prev_map_energy = map_energy.copy()
             self.prev_relic_positions = relic_positions.copy()
+            self.prev_actions = np.zeros(self.env_cfg["max_units"], dtype=int)  # Initialize actions
             return np.zeros((self.env_cfg["max_units"], 3), dtype=int)  # No actions on first step
         
         # Compute rewards
@@ -78,6 +80,18 @@ class Agent():
         # Select actions using Multi-Agent DQN
         actions, x_coords, y_coords = self.multi_agent_dqn.choose_actions([state_representation] * self.env_cfg["max_units"])
         
+        # Store experience in replay buffer
+        available_unit_ids = np.where(unit_mask)[0]
+        num_available_units = len(available_unit_ids)
+        self.multi_agent_dqn.store_experience(
+            [state_representation] * num_available_units,  # Current states
+            [state_representation] * num_available_units,  # Next states
+            list(self.prev_actions[:num_available_units]),  # Previous actions
+            list(rewards[:num_available_units]),  # Rewards
+            [False] * num_available_units,  # Done flags
+            num_available_units
+        )
+        
         formatted_actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
         for i, unit_id in enumerate(np.where(unit_mask)[0]):
             formatted_actions[unit_id] = [actions[i], x_coords[i], y_coords[i]]
@@ -87,5 +101,6 @@ class Agent():
         self.prev_unit_energies = unit_energies.copy()
         self.prev_map_energy = map_energy.copy()
         self.prev_relic_positions = relic_positions.copy()
+        self.prev_actions = actions.copy()
         
         return formatted_actions
