@@ -3,7 +3,8 @@
 
 **Deep Reinforcement Learning for Multi-Agent Strategy in Lux AI Season 3**
 
-![Project Banner]([https://github.com/Wodlfvllf/NeuralLux-Bots/blob/main/luuxai_image.png])
+![Project Banner](https://github.com/Wodlfvllf/NeuralLux-Bots/blob/main/luuxai_image.png)
+
 
 ---
 
