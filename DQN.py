@@ -65,29 +65,44 @@ class DeepQNetwork(nn.Module):
 
 
 class MultiAgentDQN:
-    def __init__(self, n_agents, input_dims, n_actions, lr=0.001, mem_size=10000, batch_size=64):
+    def __init__(self, n_agents, input_dims, n_actions, lr=0.001, gamma=0.99, tau=0.005, target_update_freq=5):
         self.n_agents = n_agents
-        self.agents = [DeepQNetwork(input_dims, n_actions, lr) for _ in range(n_agents)]
-        self.replay_buffer = SharedReplayBuffer(mem_size, input_dims)
-        self.batch_size = batch_size
+        self.gamma = gamma
+        self.tau = tau  # Soft update factor
+        self.target_update_freq = target_update_freq
+        self.update_counter = 0
 
-    def store_experience(self, states, next_states, actions, rewards, dones):
-        for i in range(self.n_agents):
-            self.replay_buffer.store_transition(states[i], next_states[i], actions[i], rewards[i], dones[i])
+        self.policy_agents = [DeepQNetwork(input_dims, n_actions, lr) for _ in range(n_agents)]
+        self.target_agents = [DeepQNetwork(input_dims, n_actions, lr) for _ in range(n_agents)]
+
+        # Sync target networks initially
+        for target_agent, policy_agent in zip(self.target_agents, self.policy_agents):
+            target_agent.load_state_dict(policy_agent.state_dict())
+
+    def _update_target_network(self):
+        """Polyak averaging to update target network"""
+        for target_agent, policy_agent in zip(self.target_agents, self.policy_agents):
+            for target_param, policy_param in zip(target_agent.parameters(), policy_agent.parameters()):
+                target_param.data.copy_(self.tau * policy_param.data + (1 - self.tau) * target_param.data)
 
     def train_agents(self):
         if self.replay_buffer.mem_ctr < self.batch_size:
             return
 
-        state_batch, next_state_batch, action_batch, reward_batch, done_batch = self.replay_buffer.sample_batch(self.batch_size)
-        for agent in self.agents:
-            q_values = agent(state_batch)
+        for policy_agent, target_agent in zip(self.policy_agents, self.target_agents):
+            state_batch, next_state_batch, action_batch, reward_batch, done_batch = self.replay_buffer.sample_batch(self.batch_size)
+
+            q_values = policy_agent(state_batch)
             q_val_curr = q_values.gather(1, action_batch.unsqueeze(1)).squeeze(1)
 
-            q_values_next = agent(next_state_batch).max(1)[0]
-            q_target = reward_batch + 0.99 * q_values_next
+            q_values_next = target_agent(next_state_batch).max(1)[0].detach()  # Use target network
+            q_target = reward_batch + self.gamma * q_values_next
             loss = nn.MSELoss()(q_target, q_val_curr)
 
-            agent.optimizer.zero_grad()
+            policy_agent.optimizer.zero_grad()
             loss.backward()
-            agent.optimizer.step()
+            policy_agent.optimizer.step()
+
+        self.update_counter += 1
+        if self.update_counter % self.target_update_freq == 0:
+            self._update_target_network()
