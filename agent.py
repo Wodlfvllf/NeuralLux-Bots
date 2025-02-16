@@ -2,7 +2,7 @@ import numpy as np
 
 class Agent():
     def __init__(self, player: str, env_cfg):
-        """Step 4: Basic Reward Function"""
+        """Step 5: Introduce Relic Exploration Rewards"""
         self.player = player
         self.opp_player = "player_1" if self.player == "player_0" else "player_0"
         self.team_id = 0 if self.player == "player_0" else 1
@@ -14,9 +14,10 @@ class Agent():
         self.prev_unit_positions = None
         self.prev_unit_energies = None
         self.prev_map_energy = None
+        self.prev_relic_positions = None
 
-    def compute_reward(self, unit_positions, prev_unit_positions, unit_energies, prev_unit_energies):
-        """Computes a simple reward based on movement and energy efficiency."""
+    def compute_reward(self, unit_positions, prev_unit_positions, unit_energies, prev_unit_energies, relic_positions):
+        """Computes a reward based on movement, energy efficiency, and relic exploration."""
         reward = np.zeros(self.env_cfg["max_units"])  # Initialize rewards for all units
 
         for unit_id in range(self.env_cfg["max_units"]):
@@ -34,29 +35,37 @@ class Agent():
             # Energy Management: Encourage efficient energy use
             if curr_energy < prev_energy:
                 reward[unit_id] -= 1  # Penalize unnecessary energy loss
+            
+            # Relic Exploration Reward
+            if len(relic_positions) > 0:
+                closest_relic = min(relic_positions, key=lambda r: np.linalg.norm(r - curr_pos))
+                distance = np.linalg.norm(closest_relic - curr_pos)
+                reward[unit_id] += max(0, 10 - distance)  # Closer to relic = higher reward
 
         return reward
 
     def act(self, step: int, obs, remainingOverageTime: int = 60):
-        """Step 4: Selects actions and computes rewards."""
+        """Step 5: Selects actions with relic exploration rewards."""
         unit_mask = np.array(obs["units_mask"][self.team_id])
         unit_positions = np.array(obs["units"]["position"][self.team_id])
         unit_energies = np.array(obs["units"]["energy"][self.team_id])
         map_energy = np.array(obs["map_features"]["energy"])
+        relic_positions = np.array(obs["relic_nodes"])
         
         # Initialize previous states on the first step
         if self.prev_unit_positions is None:
             self.prev_unit_positions = unit_positions.copy()
             self.prev_unit_energies = unit_energies.copy()
             self.prev_map_energy = map_energy.copy()
+            self.prev_relic_positions = relic_positions.copy()
             return np.zeros((self.env_cfg["max_units"], 3), dtype=int)  # No actions on first step
         
         # Compute rewards
-        rewards = self.compute_reward(unit_positions, self.prev_unit_positions, unit_energies, self.prev_unit_energies)
+        rewards = self.compute_reward(unit_positions, self.prev_unit_positions, unit_energies, self.prev_unit_energies, relic_positions)
         
         # State Representation
         unit_representation = np.concatenate((unit_positions.flatten(), unit_energies.flatten()))
-        state_representation = np.concatenate((unit_representation, map_energy.flatten()))
+        state_representation = np.concatenate((unit_representation, map_energy.flatten(), relic_positions.flatten()))
         
         actions = np.zeros((self.env_cfg["max_units"], 3), dtype=int)
         for unit_id in range(self.env_cfg["max_units"]):
@@ -69,5 +78,6 @@ class Agent():
         self.prev_unit_positions = unit_positions.copy()
         self.prev_unit_energies = unit_energies.copy()
         self.prev_map_energy = map_energy.copy()
+        self.prev_relic_positions = relic_positions.copy()
         
         return actions
