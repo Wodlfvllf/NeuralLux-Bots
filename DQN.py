@@ -64,3 +64,30 @@ class DeepQNetwork(nn.Module):
         return q_values, x_coordinates, y_coordinates
 
 
+class MultiAgentDQN:
+    def __init__(self, n_agents, input_dims, n_actions, lr=0.001, mem_size=10000, batch_size=64):
+        self.n_agents = n_agents
+        self.agents = [DeepQNetwork(input_dims, n_actions, lr) for _ in range(n_agents)]
+        self.replay_buffer = SharedReplayBuffer(mem_size, input_dims)
+        self.batch_size = batch_size
+
+    def store_experience(self, states, next_states, actions, rewards, dones):
+        for i in range(self.n_agents):
+            self.replay_buffer.store_transition(states[i], next_states[i], actions[i], rewards[i], dones[i])
+
+    def train_agents(self):
+        if self.replay_buffer.mem_ctr < self.batch_size:
+            return
+
+        state_batch, next_state_batch, action_batch, reward_batch, done_batch = self.replay_buffer.sample_batch(self.batch_size)
+        for agent in self.agents:
+            q_values = agent(state_batch)
+            q_val_curr = q_values.gather(1, action_batch.unsqueeze(1)).squeeze(1)
+
+            q_values_next = agent(next_state_batch).max(1)[0]
+            q_target = reward_batch + 0.99 * q_values_next
+            loss = nn.MSELoss()(q_target, q_val_curr)
+
+            agent.optimizer.zero_grad()
+            loss.backward()
+            agent.optimizer.step()
