@@ -85,6 +85,20 @@ class MultiAgentDQN:
             for target_param, policy_param in zip(target_agent.parameters(), policy_agent.parameters()):
                 target_param.data.copy_(self.tau * policy_param.data + (1 - self.tau) * target_param.data)
 
+    def _sample_models(self):
+        if np.random.rand() < 0.5:  # Sample models 50% of the time
+            self.flag = self.player + np.random.choice([0,1,2,3])
+
+            for idx, agent in enumerate(self.policy_agents):
+                torch.save(agent.state_dict(), f'/DATA/Shashank/LuxAis3/Agents/agent_{self.flag}/agent_{idx}.pth')
+
+            for idx, agent in enumerate(self.policy_agents):
+                model_path = f'/DATA/Shashank/LuxAis3/Agents/agent_{self.flag}/agent_{idx}.pth'
+                if os.path.exists(model_path):
+                    agent.load_state_dict(torch.load(model_path, map_location=self.device))
+                agent.to(self.device)
+
+
     def train_agents(self):
         if self.replay_buffer.mem_ctr < self.batch_size:
             return
